@@ -380,7 +380,7 @@ function simpson_obj(ρ::Array{ComplexF64,3}, t, H, J)
     return obj
 end
 
-function simpson_obj(ρ::Array{ComplexF64,3}, t, H, J, g)  
+function simpson_obj_g(ρ::Array{ComplexF64,3}, t, H, J, g)  
     
     obj = 0
     for i in 3:length(ρ)
@@ -812,6 +812,99 @@ function poly_min(p::Polynomial)
     return best_solution, best_method
 
 end
+                                                                                                                                             
+function sos_min_newton(p::Polynomial)
+
+    ################################################################################################
+    #
+    #   Try just plain TSSOS
+    #
+    ################################################################################################
+    #minimizer_tssos = nothing
+    try 
+        opt,sol,data = tssos_first(p, variables(p), QUIET=true, solution=true);
+        previous_sol = sol
+
+        while ~isnothing(sol)
+            previous_sol = sol
+            opt,sol,data = tssos_higher!(data; QUIET=true, solution=true);
+        end
+
+        global minimizer_tssos = previous_sol
+    
+    catch
+        println(" TSSOS failed")
+        global minimizer_tssos = nothing
+    #finally
+        #minimizer_tssos = nothing
+    end
+
+    ################################################################################################
+    #
+    #   Try TSSOS on polynomial with scaled variables
+    #
+    ################################################################################################
+
+    # find variable scaling
+    scale = LiPoSID.scaling_poly(p)
+
+    # scale the polynomial
+    p_scaled = subs(p, variables(p) => scale .* variables(p))
+
+    # minimize
+    # minimizer_scaled_tssos = nothing
+
+    try
+        opt,sol,data = tssos_first(p_scaled, variables(p), QUIET=true, solution=true);
+        previous_sol = sol
+
+        while ~isnothing(sol)
+            previous_sol = sol
+            opt,sol,data = tssos_higher!(data; QUIET=true, solution=true);
+        end
+
+        global minimizer_scaled_tssos = scale .* previous_sol
+    
+    catch
+        println("Scaled TSSOS failed")
+        global minimizer_scaled_tssos = nothing
+    #finally
+        #minimizer_scaled_tssos = nothing
+    end
+
+    ################################################################################################
+    #
+    #   Comparing
+    #
+    ################################################################################################
+    minimizers = [[minimizer_tssos] [minimizer_scaled_tssos]]
+    methods = ["tssos" "scaled_tssos"]
+    sols_bits = .!isnothing.(minimizers)
+
+    minimizers_found = minimizers[sols_bits]
+    methods_found = methods[sols_bits]
+
+    if length(minimizers_found) > 0
+        val_p = p.(minimizers_found)
+        best_indx = argmin(val_p)
+        best_minimizer = minimizers_found[best_indx]
+        best_method = methods_found[best_indx]
+
+    else 
+        print("All methods fail !!!")
+        best_minimizer = ones(length(variables(p)))
+        best_method = "fail"
+    end
+
+    # best_solution = minimize_local(p, best_minimizer)
+
+    best_solution = variables(p) => best_minimizer
+
+    return best_solution, best_method
+
+end                                                                                        
+                                                                                    
+                                                                                    
                                                                                     
 function sos_min(p::Polynomial)
 
