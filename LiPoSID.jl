@@ -886,6 +886,7 @@ function sos_min_newton(p::Polynomial)
 
     if length(minimizers_found) > 0
         val_p = p.(minimizers_found)
+        @show val_p                                                                                               
         best_indx = argmin(val_p)
         best_minimizer = minimizers_found[best_indx]
         best_method = methods_found[best_indx]
